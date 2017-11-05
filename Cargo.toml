@@ -1,0 +1,6 @@
+[package]
+name = "testa"
+version = "0.1.0"
+authors = ["Grzegorz Szeliga <szeligagrzegorz@gmail.com>"]
+
+[dependencies]
