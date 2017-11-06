@@ -5,9 +5,7 @@ extern crate futures;
 extern crate tokio_core;
 extern crate futures_cpupool;
 
-//use std::sync::mpsc::channel;
-//use std::thread;
-//use std::time::Duration;
+use std::thread;
 use std::net::SocketAddr;
 use futures::future::Future;
 use futures_cpupool::CpuPool;
@@ -26,7 +24,6 @@ use tokio_core::reactor::Core;
 const PHRASE: &'static str = "Hellllllloooooo";
 
 mod file_read;
-//use file_read;
 
 //https://gist.github.com/meganehouser/d5e1b47eb2873797ebdc440b0ed482df
 
@@ -86,16 +83,25 @@ impl Service for HelloWorld {
             }
 
             (&Method::Get, "/file") => {
-                let file_content = file_read::read_file("./src/main.rs");
+                println!("1. thread id={:?}", thread::current().id());
 
-                println!("aaaa {}", file_content);
+                Box::new(
+                    self.cpu_pool.spawn_fn(move || {
 
-                let mut response = Response::new();
-                response.set_body(file_content);
-                Box::new(futures::future::ok(response))
+                        println!("2. thread id={:?}", thread::current().id());
+
+                        let file_content = file_read::read_file("./src/main.rs");
+
+                        let mut response = Response::new();
+                        response.set_body(file_content);
+                        Ok(response)
+                    })
+                )
             }
 
             _ => {
+                println!("3. thread id={:?}", thread::current().id());
+
                 Box::new(futures::future::ok(
                     Response::new()
                         .with_status(StatusCode::NotFound)
@@ -136,39 +142,3 @@ fn main() {
 
     core.run(server).unwrap();
 }
-
-
-/*
-fn to_uppercase(chunk: Chunk) -> Chunk {
-    let uppered = chunk.iter()
-        .map(|byte| byte.to_ascii_uppercase())
-        .collect::<Vec<u8>>();
-    Chunk::from(uppered)
-}
-
-            (&Method::Post, "/echo") => {
-                let mapping = req.body().map(to_uppercase as fn(Chunk) -> Chunk);
-                let body: Box<Stream<Item=_, Error=_>> = Box::new(mapping);
-                response.set_body(body);
-            },
-*/
-
-/*
-fn reverse(chunk: Chunk) -> Response {
-    let reversed = chunk.iter()
-        .rev()
-        .cloned()
-        .collect::<Vec<u8>>();
-    Response::new()
-        .with_body(reversed)
-}
-
-            (&Method::Post, "/echo") => {
-                Box::new(
-                    req.body()
-                        .concat2()
-                        .map(reverse)
-                )
-            },
-*/
-
