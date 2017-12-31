@@ -6,39 +6,30 @@ extern crate tokio_core;
 extern crate futures_cpupool;
 
 use std::thread;
-use std::net::SocketAddr;
 use futures::future::Future;
-use futures_cpupool::CpuPool;
 use hyper::Client;
+
+use std::net::SocketAddr;
 
 use hyper::{Method, StatusCode};
 use hyper::header::ContentLength;
-use hyper::server::{Http, Request, Response, Service};
-
-use futures::stream::Stream;
-
-use tokio_core::reactor::Handle as TokioHandle;
-use tokio_core::net::TcpListener;
-use tokio_core::reactor::Core;
+use hyper::server::{Request, Response};
 
 const PHRASE: &'static str = "Hellllllloooooo";
 
 mod file_read;
+mod server_template;
+
+use server_template::{ServerBase, ServerBaseExtend, Context};
 
 //https://gist.github.com/meganehouser/d5e1b47eb2873797ebdc440b0ed482df
 
+#[derive(Clone)]
 struct HelloWorld {
-    tokio_handle: TokioHandle,
-    cpu_pool: CpuPool,
 }
 
-impl Service for HelloWorld {
-    type Request = Request;
-    type Response = Response;
-    type Error = hyper::Error;
-    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
-
-    fn call(&self, req: Request) -> Self::Future {
+impl ServerBaseExtend for HelloWorld {
+    fn call(&self, req: Request, context: Context) -> Box<Future<Item=Response, Error=hyper::Error>> {
 
         println!("Rwquest {}", req.path());
 
@@ -66,7 +57,7 @@ impl Service for HelloWorld {
                 let uri = "http://muzyka.onet.pl/rock/spin-ranking-najlepszych-plyt-25-lecia/cgf71".parse().unwrap();
 
                 Box::new(
-                    Client::new(&self.tokio_handle)
+                    Client::new(&context.tokio_handle)
                         .get(uri)
                         .and_then(|res| {
 
@@ -86,7 +77,7 @@ impl Service for HelloWorld {
                 println!("1. thread id={:?}", thread::current().id());
 
                 Box::new(
-                    self.cpu_pool.spawn_fn(move || {
+                    context.cpu_pool.spawn_fn(move || {
 
                         println!("2. thread id={:?}", thread::current().id());
 
@@ -113,32 +104,11 @@ impl Service for HelloWorld {
     }
 }
 
-
 fn main() {
     let addr = "127.0.0.1:7777";
     let srv_addr: SocketAddr = addr.parse().unwrap();
     
     println!("server start {}", addr);
 
-    let cpu_pool = CpuPool::new_num_cpus();
-
-    let http = Http::new();
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-
-    let listener = TcpListener::bind(&srv_addr, &handle).unwrap();
-    let server = listener
-        .incoming()
-        .for_each(|(sock, addr)| {
-
-            let hello_world = HelloWorld {
-                tokio_handle: handle.clone(),
-                cpu_pool: cpu_pool.clone()
-            };
-
-            http.bind_connection(&handle, sock, addr, hello_world);
-            Ok(())
-        });
-
-    core.run(server).unwrap();
+    ServerBase::run(srv_addr, HelloWorld{});
 }

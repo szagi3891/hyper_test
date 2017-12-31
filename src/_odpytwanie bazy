@@ -1,0 +1,16 @@
+https://github.com/shterrett/tokio-tutorials/blob/master/db/src/main.rs
+
+        let msg = self.thread_pool.spawn_fn(move || {
+            let conn = db.get().map_err(|e| {
+                io::Error::new(io::ErrorKind::Other,
+                               format!("timeout: {}", e))
+            })?;
+            let stmt = conn.prepare_cached("select * from world where id = ?")?;
+            let rows = stmt.query(&[&random_id])?;
+            let row = rows.get(0);
+
+            Ok(Message {
+                id: row.get("id"),
+                random_number: row.get("randomNumber")
+            })
+        });
