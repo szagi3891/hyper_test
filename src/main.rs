@@ -2,18 +2,23 @@
 
 extern crate hyper;
 extern crate futures;
+extern crate hyper_staticfile;
 extern crate tokio_core;
 extern crate futures_cpupool;
 
 use std::thread;
 use futures::future::Future;
 use hyper::Client;
+use std::path::Path;
 
 use std::net::SocketAddr;
 
 use hyper::{Method, StatusCode};
 use hyper::header::ContentLength;
-use hyper::server::{Request, Response};
+use hyper::server::{Request, Response, Service};
+use hyper_staticfile::Static;
+
+use tokio_core::reactor::Handle as TokioHandle;
 
 const PHRASE: &'static str = "Hellllllloooooo";
 
@@ -24,14 +29,51 @@ use server_template::{ServerBase, ServerBaseExtend, Context};
 
 //https://gist.github.com/meganehouser/d5e1b47eb2873797ebdc440b0ed482df
 
-#[derive(Clone)]
+//Static : https://github.com/stephank/hyper-staticfile/blob/master/examples/doc_server.rs
+
+fn match_str<'a>(data: &'a str, pattern: &'a str) -> Option<&'a str> {
+    let pattern_len = pattern.len();
+
+    if data.len() >= pattern_len {
+        let (head, body) = data.split_at(pattern_len);
+        if head == pattern {
+            return Some(body);
+        }
+    }
+
+    None
+}
+
+#[test]
+fn match_str_test() {
+    let aaa = "abcdef";
+
+    assert_eq!(match_str(aaa, ""), Some("abcdef"));
+    assert_eq!(match_str(aaa, "abc"), Some("def"));
+    assert_eq!(match_str(aaa, "abcde"), Some("f"));
+    assert_eq!(match_str(aaa, "abcdef"), Some(""));
+    assert_eq!(match_str(aaa, "abd"), None);
+    assert_eq!(match_str(aaa, "abdeffffff"), None);
+    assert_eq!(match_str(aaa, "ffff"), None);
+}
+
 struct HelloWorld {
+    http_static: Static,
 }
 
 impl ServerBaseExtend for HelloWorld {
     fn call(&self, req: Request, context: Context) -> Box<Future<Item=Response, Error=hyper::Error>> {
 
-        println!("Rwquest {}", req.path());
+        println!("Request {}", req.path());
+
+        let to_run = {
+            let req_path = req.path();
+            match_str(req_path, "/static/").is_some()
+        };
+
+        if to_run {
+            return self.http_static.call(req);
+        }
 
         match (req.method(), req.path()) {
 
@@ -110,5 +152,9 @@ fn main() {
     
     println!("server start {}", addr);
 
-    ServerBase::run(srv_addr, || { HelloWorld{} });
+    ServerBase::run(srv_addr, |handle: &TokioHandle| {
+        HelloWorld {
+            http_static: Static::new(&handle, Path::new("/static")),
+        }
+    });
 }

@@ -42,7 +42,7 @@ impl<T: ServerBaseExtend> Service for ServerBase<T> {
 }
 
 impl<T: ServerBaseExtend + 'static> ServerBase<T> {
-    pub fn run<FBuild>(srv_addr: SocketAddr, build: FBuild) where FBuild: Fn() -> T {
+    pub fn run<FBuild>(srv_addr: SocketAddr, build: FBuild) where FBuild: Fn(&TokioHandle) -> T {
         let cpu_pool = CpuPool::new_num_cpus();
 
         let http = Http::new();
@@ -57,7 +57,7 @@ impl<T: ServerBaseExtend + 'static> ServerBase<T> {
                 let hello_world = ServerBase {
                     tokio_handle: handle.clone(),
                     cpu_pool: cpu_pool.clone(),
-                    inner: build()
+                    inner: build(&handle)
                 };
 
                 http.bind_connection(&handle, sock, addr, hello_world);
