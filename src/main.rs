@@ -110,5 +110,5 @@ fn main() {
     
     println!("server start {}", addr);
 
-    ServerBase::run(srv_addr, HelloWorld{});
+    ServerBase::run(srv_addr, || { HelloWorld{} });
 }
