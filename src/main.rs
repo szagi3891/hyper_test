@@ -30,6 +30,41 @@ use static_file::StaticFile;
 
 //Static : https://github.com/stephank/hyper-staticfile/blob/master/examples/doc_server.rs
 
+/*
+pub enum Type {
+    TextHtml,
+    TextPlain,
+    ImageJpeg,
+    ImagePng,
+}
+
+impl Type {
+    pub fn to_str(&self) -> &str {
+        match *self {
+            Type::TextHtml => "text/html; charset=utf-8",
+            Type::TextPlain => "text/plain",
+            Type::ImageJpeg => "image/jpeg",
+            Type::ImagePng => "image/png",
+        }
+    }
+
+    pub fn create_from_path(path: &Path) -> Type {
+        match path.extension() {    
+            Some(ext) => match ext.to_str() {
+                Some("txt")  => Type::TextPlain,
+                Some("jpg")  => Type::ImageJpeg,
+                Some("png")  => Type::ImagePng,
+                //Some("html") => Type::TextHtml,
+                Some(_)      => Type::TextHtml,
+                None         => Type::TextHtml,
+            },
+            
+            None => Type::TextHtml,
+        }
+    }
+}
+*/
+
 struct HelloWorldServer {
     cpu_pool: CpuPool,
     static_file: StaticFile,
