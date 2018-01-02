@@ -14,6 +14,7 @@ use std::net::SocketAddr;
 use hyper::{Method, StatusCode};
 //use hyper::header::ContentLength;
 use hyper::server::{Request, Response};
+use hyper::header::ContentType;
 
 use tokio_core::reactor::Handle;
 use std::path::{Path};
@@ -30,40 +31,23 @@ use static_file::StaticFile;
 
 //Static : https://github.com/stephank/hyper-staticfile/blob/master/examples/doc_server.rs
 
-/*
-pub enum Type {
-    TextHtml,
-    TextPlain,
-    ImageJpeg,
-    ImagePng,
-}
+fn set_header(response: &mut Response, path: &str) {
+    let ext = match Path::new(path).extension() {
+        Some(ext) => match ext.to_str() {
+            Some("txt")  => ContentType::plaintext() ,
+            Some("jpg")  => ContentType::jpeg(),
+            Some("png")  => ContentType::png(),
+            //Some("html") => Type::TextHtml,
+            Some(_)      => ContentType::html(),
+            None         => ContentType::html(),
+        },
+        
+        None => ContentType::html(),
+    };
 
-impl Type {
-    pub fn to_str(&self) -> &str {
-        match *self {
-            Type::TextHtml => "text/html; charset=utf-8",
-            Type::TextPlain => "text/plain",
-            Type::ImageJpeg => "image/jpeg",
-            Type::ImagePng => "image/png",
-        }
-    }
-
-    pub fn create_from_path(path: &Path) -> Type {
-        match path.extension() {    
-            Some(ext) => match ext.to_str() {
-                Some("txt")  => Type::TextPlain,
-                Some("jpg")  => Type::ImageJpeg,
-                Some("png")  => Type::ImagePng,
-                //Some("html") => Type::TextHtml,
-                Some(_)      => Type::TextHtml,
-                None         => Type::TextHtml,
-            },
-            
-            None => Type::TextHtml,
-        }
-    }
+    let headers = response.headers_mut();
+    headers.set(ext);
 }
-*/
 
 struct HelloWorldServer {
     cpu_pool: CpuPool,
@@ -79,8 +63,8 @@ impl ServerBaseExtend for HelloWorldServer {
             let req_path = req.path();
             if let Some(rest) = match_str::match_str(req_path, "/static/") {
                 match self.static_file.to_response(rest) {
-                    Ok(response) => {
-                        //W tym miejscu response można wzbogacić o nagłówek content-type
+                    Ok(mut response) => {
+                        set_header(&mut response, rest);
                         return Box::new(futures::future::ok(response));
                     },
                     Err(_err) => {
