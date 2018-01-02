@@ -6,6 +6,5 @@ authors = ["Grzegorz Szeliga <szeligagrzegorz@gmail.com>"]
 [dependencies]
 futures = "0.1.14"
 hyper = "0.11.2"
-hyper-staticfile = "0.1.1"
 tokio-core="0.1.10"
 futures-cpupool = "0.1.7"

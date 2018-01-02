@@ -1,29 +1,22 @@
 
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
-
+use std::path::Path;
 use std::net::SocketAddr;
-use futures_cpupool::CpuPool;
 
 use futures::Future;
 use futures::stream::Stream;
 
-use tokio_core::reactor::Handle as TokioHandle;
+use tokio_core::reactor::Handle;
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 
-pub struct Context {
-    pub tokio_handle: TokioHandle,
-    pub cpu_pool: CpuPool,
-}
-
 pub trait ServerBaseExtend {
-    fn call(&self, req: Request, context: Context) -> Box<Future<Item=Response, Error=hyper::Error>>;
+    fn call(&self, req: Request, handle: &Handle) -> Box<Future<Item=Response, Error=hyper::Error>>;
 }
 
 pub struct ServerBase<T: ServerBaseExtend> {
-    tokio_handle: TokioHandle,
-    cpu_pool: CpuPool,
+    tokio_handle: Handle,
     inner: T,
 }
 
@@ -34,16 +27,21 @@ impl<T: ServerBaseExtend> Service for ServerBase<T> {
     type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
     fn call(&self, req: Request) -> Self::Future {
-        self.inner.call(req, Context {
-            cpu_pool: self.cpu_pool.clone(),
-            tokio_handle: self.tokio_handle.clone(),
-        })
+
+        {
+            let uri_path = Path::new(req.path());
+
+            if !uri_path.is_absolute() {
+                panic!("Tylko absolutne ścieżki są dozwolone");
+            }
+        }
+
+        self.inner.call(req, &self.tokio_handle)
     }
 }
 
 impl<T: ServerBaseExtend + 'static> ServerBase<T> {
-    pub fn run<FBuild>(srv_addr: SocketAddr, build: FBuild) where FBuild: Fn(&TokioHandle) -> T {
-        let cpu_pool = CpuPool::new_num_cpus();
+    pub fn run<FBuild>(srv_addr: SocketAddr, build: FBuild) where FBuild: Fn(&Handle) -> T {
 
         let http = Http::new();
         let mut core = Core::new().unwrap();
@@ -56,7 +54,6 @@ impl<T: ServerBaseExtend + 'static> ServerBase<T> {
 
                 let hello_world = ServerBase {
                     tokio_handle: handle.clone(),
-                    cpu_pool: cpu_pool.clone(),
                     inner: build(&handle)
                 };
 

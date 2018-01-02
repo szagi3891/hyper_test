@@ -2,77 +2,60 @@
 
 extern crate hyper;
 extern crate futures;
-extern crate hyper_staticfile;
 extern crate tokio_core;
 extern crate futures_cpupool;
 
-use std::thread;
+use futures_cpupool::CpuPool;
 use futures::future::Future;
 use hyper::Client;
-use std::path::Path;
 
 use std::net::SocketAddr;
 
 use hyper::{Method, StatusCode};
 use hyper::header::ContentLength;
-use hyper::server::{Request, Response, Service};
-use hyper_staticfile::Static;
+use hyper::server::{Request, Response};
 
-use tokio_core::reactor::Handle as TokioHandle;
+use tokio_core::reactor::Handle;
+use std::path::{Path};
 
 const PHRASE: &'static str = "Hellllllloooooo";
 
 mod file_read;
 mod server_template;
+mod static_file;
+mod match_str;
 
-use server_template::{ServerBase, ServerBaseExtend, Context};
+use server_template::{ServerBase, ServerBaseExtend};
+use static_file::StaticFile;
 
 //https://gist.github.com/meganehouser/d5e1b47eb2873797ebdc440b0ed482df
 
 //Static : https://github.com/stephank/hyper-staticfile/blob/master/examples/doc_server.rs
 
-fn match_str<'a>(data: &'a str, pattern: &'a str) -> Option<&'a str> {
-    let pattern_len = pattern.len();
-
-    if data.len() >= pattern_len {
-        let (head, body) = data.split_at(pattern_len);
-        if head == pattern {
-            return Some(body);
-        }
-    }
-
-    None
+struct HelloWorldServer {
+    cpu_pool: CpuPool,
+    static_file: StaticFile,
 }
 
-#[test]
-fn match_str_test() {
-    let aaa = "abcdef";
-
-    assert_eq!(match_str(aaa, ""), Some("abcdef"));
-    assert_eq!(match_str(aaa, "abc"), Some("def"));
-    assert_eq!(match_str(aaa, "abcde"), Some("f"));
-    assert_eq!(match_str(aaa, "abcdef"), Some(""));
-    assert_eq!(match_str(aaa, "abd"), None);
-    assert_eq!(match_str(aaa, "abdeffffff"), None);
-    assert_eq!(match_str(aaa, "ffff"), None);
-}
-
-struct HelloWorld {
-    http_static: Static,
-}
-
-impl ServerBaseExtend for HelloWorld {
-    fn call(&self, req: Request, context: Context) -> Box<Future<Item=Response, Error=hyper::Error>> {
+impl ServerBaseExtend for HelloWorldServer {
+    fn call(&self, req: Request, handle: &Handle) -> Box<Future<Item=Response, Error=hyper::Error>> {
 
         println!("Request {}", req.path());
 
-        let to_run = {
+        if req.method() == &Method::Get {
             let req_path = req.path();
-            match_str(req_path, "/static/").is_some()
-        };
-
-        if to_run {
-            return self.http_static.call(req);
+            if let Some(rest) = match_str::match_str(req_path, "/static/") {
+                match self.static_file.to_response(rest) {
+                    Ok(response) => {
+                        return Box::new(futures::future::ok(response));
+                    },
+                    Err(_err) => {
+                        let mut resp = Response::new()
+                            .with_status(StatusCode::NotFound);
+                        return Box::new(futures::future::ok(resp));
+                    }
+                }
+            }
         }
 
         match (req.method(), req.path()) {
@@ -99,7 +82,7 @@ impl ServerBaseExtend for HelloWorld {
                 let uri = "http://muzyka.onet.pl/rock/spin-ranking-najlepszych-plyt-25-lecia/cgf71".parse().unwrap();
 
                 Box::new(
-                    Client::new(&context.tokio_handle)
+                    Client::new(&handle)
                         .get(uri)
                         .and_then(|res| {
 
@@ -116,13 +99,8 @@ impl ServerBaseExtend for HelloWorld {
             }
 
             (&Method::Get, "/file") => {
-                println!("1. thread id={:?}", thread::current().id());
-
                 Box::new(
-                    context.cpu_pool.spawn_fn(move || {
-
-                        println!("2. thread id={:?}", thread::current().id());
-
+                    self.cpu_pool.spawn_fn(move || {
                         let file_content = file_read::read_file("./src/main.rs");
 
                         let mut response = Response::new();
@@ -133,8 +111,6 @@ impl ServerBaseExtend for HelloWorld {
             }
 
             _ => {
-                println!("3. thread id={:?}", thread::current().id());
-
                 Box::new(futures::future::ok(
                     Response::new()
                         .with_status(StatusCode::NotFound)
@@ -152,9 +128,12 @@ fn main() {
     
     println!("server start {}", addr);
 
-    ServerBase::run(srv_addr, |handle: &TokioHandle| {
-        HelloWorld {
-            http_static: Static::new(&handle, Path::new("/static")),
+    let cpu_pool = CpuPool::new_num_cpus();
+
+    ServerBase::run(srv_addr, |handle: &Handle| {
+        HelloWorldServer {
+            cpu_pool: cpu_pool.clone(),
+            static_file: StaticFile::new(handle, Path::new("./static_public/")),
         }
     });
 }
