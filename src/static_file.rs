@@ -4,7 +4,7 @@ use std::path::{PathBuf, Path};
 use std::fs::File;
 use std::io::Error;
 use tokio_core::reactor::Handle;
-
+use futures_cpupool::CpuPool;
 use futures::{Future, Stream, Sink, Poll, Async};
 use hyper::{Chunk, Body};
 
@@ -32,16 +32,19 @@ impl Stream for FileChunkStream {
     }
 }
 
+#[derive(Clone)]
 pub struct StaticFile {
     handle: Handle,
     base_dir: PathBuf,
+    cpu_pool: CpuPool,
 }
 
 impl StaticFile {
-    pub fn new(handle: &Handle, base_dir: &Path) -> StaticFile {
+    pub fn new(handle: Handle, base_dir: &Path, cpu_pool: CpuPool) -> StaticFile {
         StaticFile {
-            handle: handle.clone(),
-            base_dir: base_dir.to_path_buf()
+            handle: handle,
+            base_dir: base_dir.to_path_buf(),
+            cpu_pool: cpu_pool,
         }
     }
 
@@ -56,11 +59,13 @@ impl StaticFile {
 
         let (sender, body) = Body::pair();
         self.handle.spawn(
-            sender.send_all(FileChunkStream(file))
-                .map(|_| ())
-                .map_err(|_| ())
+            self.cpu_pool.spawn(
+                sender.send_all(FileChunkStream(file))
+                    .map(|_| ())
+                    .map_err(|_| ())
+            )
         );
-        
+
         let mut res = Response::new();
         res.set_body(body);
         return Ok(res);

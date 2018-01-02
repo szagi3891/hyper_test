@@ -165,11 +165,12 @@ fn main() {
     println!("server start {}", addr);
 
     let cpu_pool = CpuPool::new_num_cpus();
+    let cpu_pool_file = CpuPool::new(16);
 
     ServerBase::run(srv_addr, |handle: &Handle| {
         HelloWorldServer {
             cpu_pool: cpu_pool.clone(),
-            static_file: StaticFile::new(handle, Path::new("./static_public")),
+            static_file: StaticFile::new(handle.clone(), Path::new("./static_public"), cpu_pool_file.clone()),
         }
     });
 }
