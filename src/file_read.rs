@@ -13,12 +13,7 @@ pub fn read_file(file_path: &str) -> String {
         Ok(file) => file,
     };
 
-    let mut s = String::new();
-
-    match file.read_to_string(&mut s) {
-        Err(why) => panic!("couldn't read {}: {}", display, why.description()),
-        Ok(_) => print!("{} contains:\n{}", display, s),
-    }
-
-    s
+    let mut result = String::new();
+    file.read_to_string(&mut result).unwrap();
+    result
 }

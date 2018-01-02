@@ -12,13 +12,11 @@ use hyper::Client;
 use std::net::SocketAddr;
 
 use hyper::{Method, StatusCode};
-use hyper::header::ContentLength;
+//use hyper::header::ContentLength;
 use hyper::server::{Request, Response};
 
 use tokio_core::reactor::Handle;
 use std::path::{Path};
-
-const PHRASE: &'static str = "Hellllllloooooo";
 
 mod file_read;
 mod server_template;
@@ -47,6 +45,7 @@ impl ServerBaseExtend for HelloWorldServer {
             if let Some(rest) = match_str::match_str(req_path, "/static/") {
                 match self.static_file.to_response(rest) {
                     Ok(response) => {
+                        //W tym miejscu response można wzbogacić o nagłówek content-type
                         return Box::new(futures::future::ok(response));
                     },
                     Err(_err) => {
@@ -111,10 +110,12 @@ impl ServerBaseExtend for HelloWorldServer {
             }
 
             _ => {
+                const PHRASE: &'static str = "Hellllllloooooo";
+
                 Box::new(futures::future::ok(
                     Response::new()
                         .with_status(StatusCode::NotFound)
-                        .with_header(ContentLength(PHRASE.len() as u64))
+                        //.with_header(ContentLength(PHRASE.len() as u64))
                         .with_body(PHRASE)
                 ))
             }
