@@ -169,7 +169,7 @@ fn main() {
     ServerBase::run(srv_addr, |handle: &Handle| {
         HelloWorldServer {
             cpu_pool: cpu_pool.clone(),
-            static_file: StaticFile::new(handle, Path::new("./static_public/")),
+            static_file: StaticFile::new(handle, Path::new("./static_public")),
         }
     });
 }
